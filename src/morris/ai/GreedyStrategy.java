@@ -39,9 +39,7 @@ public Move getBestMove(Board board, Player cpu, Player human) {
 
     // =========================================================
 
-    private int evaluateMyMove(Board before, Board after,
-
-                               Move move, Player cpu, Player human) {
+    private int evaluateMyMove(Board before, Board after, Move move, Player cpu, Player human) {
 
         int score = 0;
 
