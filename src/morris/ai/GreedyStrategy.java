@@ -31,6 +31,15 @@ public Move getBestMove(Board board, Player cpu, Player human) {
     return scoredMoves.get(0).move;
 
     }
+    private static class ScoredMove {
+    Move move;
+    int score;
+
+    ScoredMove(Move move, int score) {
+        this.move = move;
+        this.score = score;
+    }
+
 
 
     // =========================================================
