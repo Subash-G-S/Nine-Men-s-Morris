@@ -1,264 +1,142 @@
 package morris.ai;
+
+import java.util.*;
 import morris.model.Board;
 import morris.model.Move;
 import morris.model.Player;
 import morris.util.Constants;
-import java.util.*;
 
 public class GreedyStrategy implements CpuStrategy {
 
-    private final Random rnd = new Random();
-
     @Override
-public Move getBestMove(Board board, Player cpu, Player human) {
+    public Move getBestMove(Board board, Player cpu, Player human) {
+        List<Move> moves = board.generateLegalMoves(cpu.code());
+        if (moves.isEmpty()) return null;
 
-    List<Move> moves = board.generateLegalMoves(cpu.code());
-    if (moves.isEmpty()) return null;
-    List<ScoredMove> scoredMoves = new ArrayList<>();
+        Move best = null;
+        int bestScore = Integer.MIN_VALUE;
 
-    for (Move m : moves) {
-        Board afterMyMove = board.clone();
-        afterMyMove.applyMove(m, cpu.code());
+        for (Move m : moves) {
+            Board clone = board.clone();
+            clone.applyMove(m, cpu.code());
 
-        int score = evaluateMyMove(board, afterMyMove, m, cpu, human);
-        score += rnd.nextInt(3);
+            int score = evaluate(clone, board, m, cpu, human);
 
-        scoredMoves.add(new ScoredMove(m, score));
+            if (score > bestScore) {
+                bestScore = score;
+                best = m;
+            }
+        }
+
+        return best;
     }
 
-    scoredMoves.sort((a, b) -> Integer.compare(b.score, a.score));
-
-    return scoredMoves.get(0).move;
-
-    }
-    private static class ScoredMove {
-    Move move;
-    int score;
-
-    ScoredMove(Move move, int score) {
-        this.move = move;
-        this.score = score;
-    }
-
-
-
-    // =========================================================
-
-    // MAIN GREEDY EVALUATION
-
-    // =========================================================
-
-    private int evaluateMyMove(Board before, Board after, Move move, Player cpu, Player human) {
+    // ---------------------------------------------------------
+    // GRAPH-BASED GREEDY EVALUATION
+    // ---------------------------------------------------------
+    private int evaluate(Board newState, Board oldState, Move move,
+                         Player cpu, Player human) {
 
         int score = 0;
+        int cpuCode = cpu.code();
+        int humanCode = human.code();
 
-        int C = cpu.code();
+        // -------------------------
+        // 1. Mill formation
+        // -------------------------
+        if (newState.formsMill(cpuCode, move.to))
+            score += 100;
 
-        int H = human.code();
+        // -------------------------
+        // 2. Block opponent mill
+        // -------------------------
+        if (blocksOpponentMill(oldState, move, human)) {
+            score += 120;
+        }
 
+        // -------------------------
+        // 3. Graph-based: Node centrality (degree)
+        // -------------------------
+        int degree = Constants.ADJ.get(move.to).size();
+        score += degree * 10;
 
-        if (after.formsMill(C, move.to))
+        // -------------------------
+        // 4. Graph-based: Opponent mobility reduction
+        // -------------------------
+        int before = oldState.generateLegalMoves(humanCode).size();
+        int after  = newState.generateLegalMoves(humanCode).size();
+        score += (before - after) * 12;
 
-            score += 1000;
+        // -------------------------
+        // 5. Graph-based: CPU mobility improvement
+        // -------------------------
+        score += newState.generateLegalMoves(cpuCode).size() * 3;
 
+        // -------------------------
+        // 6. Graph-based: Connected component advantage
+        // -------------------------
+        score += largestCluster(newState, cpuCode) * 7;
+        score -= largestCluster(newState, humanCode) * 8;
 
-        if (opponentHasImmediateMill(before, human))
+        // -------------------------
+        // 7. Ring control (outer → middle → inner)
+        // -------------------------
+        score += newState.countPiecesInList(cpuCode, Constants.INNER_RING) * 5;
+        score += newState.countPiecesInList(cpuCode, Constants.MIDDLE_RING) * 3;
 
-            score += 800;
-
-
-        int opponentReplyPenalty = worstOpponentReply(after, cpu, human);
-
-        score -= opponentReplyPenalty;
-
-        score += (after.generateLegalMoves(C).size()
-
-                - after.generateLegalMoves(H).size()) * 15;
-
-
-        score += countTwoInRow(after, cpu) * 60;
-
-        score -= countTwoInRow(after, human) * 80;
-
-        score += Constants.ADJ.get(move.to).size() * 10;
-
-
-        score += largestCluster(after, C) * 12;
-
-        score -= largestCluster(after, H) * 14;
-
-
-        score += after.countPiecesInList(C, Constants.INNER_RING) * 20;
-
-        score += after.countPiecesInList(C, Constants.MIDDLE_RING) * 10;
-
-
+        score -= newState.countPiecesInList(humanCode, Constants.INNER_RING) * 5;
+        score -= newState.countPiecesInList(humanCode, Constants.MIDDLE_RING) * 3;
 
         return score;
-
     }
 
-    // =========================================================
-
-    // OPPONENT BEST REPLY (1-PLY LOOKAHEAD, STILL GREEDY)
-
-    // =========================================================
-
-    private int worstOpponentReply(Board state, Player cpu, Player human) {
-
-
-
-        int worst = 0;
-
-
-
-        for (Move m : state.generateLegalMoves(human.code())) {
-
-            Board c = state.clone();
-
-            c.applyMove(m, human.code());
-
-
-            int replyScore = 0;
-
-            if (c.formsMill(human.code(), m.to))
-
-                replyScore += 600;
-
-
-            replyScore += countTwoInRow(c, human) * 50;
-
-            replyScore += c.generateLegalMoves(human.code()).size() * 5;
-
-            worst = Math.max(worst, replyScore);
-
-        }
-
-
-
-        return worst;
-
-    }
-
-    // =========================================================
-
-    // IMMEDIATE MILL CHECK
-
-    // =========================================================
-
-    private boolean opponentHasImmediateMill(Board b, Player human) {
-
+    // ---------------------------------------------------------
+    // opponent threatens a mill
+    // ---------------------------------------------------------
+    private boolean blocksOpponentMill(Board b, Move cpuMove, Player human) {
         for (Move m : b.generateLegalMoves(human.code())) {
-
             Board c = b.clone();
-
             c.applyMove(m, human.code());
-
-            if (c.hasAnyMill(human.code())) return true;
-
-        }
-
-        return false;
-
-    }
-
-
-
-    // =========================================================
-
-    // TWO-IN-A-ROW (FUTURE MILL)
-
-    // =========================================================
-
-    private int countTwoInRow(Board b, Player p) {
-
-        int count = 0;
-
-        for (int[] mill : Constants.MILLS) {
-
-            int own = 0, empty = 0;
-
-            for (int i : mill) {
-
-                if (b.getCells()[i] == p.code()) own++;
-
-                else if (b.getCells()[i] == 0) empty++;
-
+            if (c.hasAnyMill(human.code())) {
+                if (cpuMove.to == m.to) return true;
             }
-
-            if (own == 2 && empty == 1) count++;
-
         }
-
-        return count;
-
+        return false;
     }
 
-
-
-    // =========================================================
-
-    // LARGEST CONNECTED COMPONENT (GRAPH BFS)
-
-    // =========================================================
-
+    // ---------------------------------------------------------
+    // BFS for largest connected component of player's stones
+    // ---------------------------------------------------------
     private int largestCluster(Board b, int player) {
-
         boolean[] visited = new boolean[24];
-
-        int max = 0;
-
-
+        int maxSize = 0;
 
         for (int i = 0; i < 24; i++) {
-
             if (!visited[i] && b.getCells()[i] == player) {
-
-                max = Math.max(max, bfs(b, i, player, visited));
-
+                int size = bfsCluster(b, i, player, visited);
+                if (size > maxSize) maxSize = size;
             }
-
         }
-
-        return max;
-
+        return maxSize;
     }
 
-
-    private int bfs(Board b, int start, int p, boolean[] visited) {
-
-        Queue<Integer> q = new ArrayDeque<>();
-
+    private int bfsCluster(Board b, int start, int player, boolean[] visited) {
+        Queue<Integer> q = new LinkedList<>();
         q.add(start);
-
         visited[start] = true;
 
         int size = 1;
 
-
-
         while (!q.isEmpty()) {
-
             int u = q.poll();
-
             for (int nb : Constants.ADJ.get(u)) {
-
-                if (!visited[nb] && b.getCells()[nb] == p) {
-
+                if (!visited[nb] && b.getCells()[nb] == player) {
                     visited[nb] = true;
-
                     size++;
-
                     q.add(nb);
-
                 }
-
             }
-
         }
-
         return size;
-
     }
-
 }

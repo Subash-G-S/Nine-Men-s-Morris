@@ -9,7 +9,7 @@ public class GameApp extends Application {
     @Override
     public void start(Stage stage) {
         GameController controller = new GameController();
-        Scene scene = new Scene(controller.getRoot(), 900, 700);
+        Scene scene = new Scene(controller.getRoot(), 1100, 760);
         stage.setTitle("Nine Men's Morris - Human vs CPU");
         stage.setScene(scene);
         stage.show();

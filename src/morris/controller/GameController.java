@@ -1,5 +1,6 @@
 package morris.controller;
 
+import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
@@ -7,20 +8,24 @@ import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.util.Duration;
 
 import morris.ai.CpuStrategy;
 import morris.ai.DivideAndConquerStrategy;
-import morris.ai.DpBacktrackingStrategy;
 import morris.ai.GreedyStrategy;
 import morris.model.Board;
 import morris.model.Move;
@@ -60,27 +65,43 @@ public class GameController {
     private boolean animating = false;
     private Timeline moveTimeline;
     private Integer lastCpuTo = null;
+    private Timeline bgTimeline;
+    private boolean bgToggle = false;
+    private boolean gameOver = false;
 
     public GameController() {
         board = new Board();
 
         root = new BorderPane();
-        canvas = new Canvas(900, 700);
+        canvas = new Canvas(720, 720);
         g = canvas.getGraphicsContext2D();
 
+        root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f6f3ff, #eaf7ff, #f9fff2);");
+
+        Label title = new Label("Nine Men's Morris");
+        title.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #4b1fa6;");
+
         status = new Label("Placement phase. Human plays first.");
+        status.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0b6ea8;");
+
         humanCoinsLabel = new Label("Your Coins: 9");
         cpuCoinsLabel   = new Label("CPU Coins: 9");
+        humanCoinsLabel.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #0b5fa6;");
+        cpuCoinsLabel.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #b0204e;");
 
         algoSelect = new ComboBox<>();
-        algoSelect.getItems().addAll("Greedy", "Divide & Conquer", "DP + Backtracking");
+        algoSelect.getItems().addAll("Greedy", "Divide & Conquer");
         algoSelect.setValue("Greedy");
+        algoSelect.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-background-color: #ffffff; -fx-border-color: #8e6bd1;");
+
+        Label algoTitle = new Label("CPU Strategy");
+        algoTitle.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #6a2bd9;");
 
         algoInfo = new TextArea();
         algoInfo.setEditable(false);
         algoInfo.setWrapText(true);
         algoInfo.setPrefWidth(260);
-        algoInfo.setStyle("-fx-font-size: 14px; -fx-control-inner-background: #f4f4f4;");
+        algoInfo.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 13px; -fx-control-inner-background: #fff8ff; -fx-text-fill: #3a2b6a;");
 
         algoSelect.setOnAction(e -> {
             updateCpuStrategy();
@@ -90,19 +111,38 @@ public class GameController {
         updateAlgorithmExplanation();
 
         BorderPane top = new BorderPane();
-        VBox leftBox = new VBox(5, algoSelect, humanCoinsLabel, cpuCoinsLabel);
-        top.setLeft(leftBox);
-        top.setRight(status);
+        top.setPadding(new Insets(12, 16, 12, 16));
+
+        VBox titleBox = new VBox(4, title, status);
+        titleBox.setAlignment(Pos.CENTER_LEFT);
+
+        VBox leftBox = new VBox(8, algoTitle, algoSelect, humanCoinsLabel, cpuCoinsLabel);
+        leftBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox topContent = new HBox(24, leftBox, titleBox);
+        topContent.setAlignment(Pos.CENTER_LEFT);
+
+        top.setLeft(topContent);
 
         root.setTop(top);
         root.setCenter(canvas);
-        root.setRight(algoInfo);
+        VBox rightPanel = new VBox(8, new Label("Algorithm Details"), algoInfo);
+        rightPanel.setPadding(new Insets(12, 16, 12, 12));
+        rightPanel.setPrefWidth(280);
+        rightPanel.setStyle("-fx-background-color: linear-gradient(to bottom, #fff4fb, #f0f7ff); -fx-border-color: #b88de8; -fx-border-width: 0 0 0 2;");
+        ((Label) rightPanel.getChildren().get(0)).setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #5a24c7;");
+        root.setRight(rightPanel);
+        BorderPane.setMargin(canvas, new Insets(8, 8, 8, 16));
+
+        startBackgroundAnimation();
 
         setupNodePositions();
         drawBoard();
 
+        Platform.runLater(this::showStartDialog);
+
         canvas.setOnMouseClicked(e -> {
-            if (animating) return; // ignore clicks during animations
+            if (animating || gameOver) return; // ignore clicks during animations or after game end
             int clicked = findNearestNode(e.getX(), e.getY());
             if (clicked != -1) {
                 handleHumanClick(clicked);
@@ -123,9 +163,6 @@ public class GameController {
                 break;
             case "Divide & Conquer":
                 cpuStrategy = new DivideAndConquerStrategy();
-                break;
-            case "DP + Backtracking":
-                cpuStrategy = new DpBacktrackingStrategy();
                 break;
         }
     }
@@ -166,17 +203,6 @@ public class GameController {
                 );
                 break;
 
-            case "DP + Backtracking":
-                algoInfo.setText(
-                    "Algorithm: Minimax + DP + Backtracking\n\n" +
-                    "Strategy:\n" +
-                    "- Uses Minimax game tree search\n" +
-                    "- Alpha-Beta Pruning\n" +
-                    "- Memoization (DP) for repeated board states\n" +
-                    "- Backtracking through move tree\n\n" +
-                    "Time Complexity: O(b^d) (reduced by pruning)\n"
-                );
-                break;
         }
     }
 
@@ -228,25 +254,31 @@ public class GameController {
         // Wooden background
         LinearGradient woodBg = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
-                new Stop(0, Color.rgb(90, 60, 40)),
-                new Stop(0.5, Color.rgb(140, 90, 50)),
-                new Stop(1, Color.rgb(70, 45, 30))
+                new Stop(0, Color.rgb(48, 24, 84)),
+                new Stop(0.5, Color.rgb(28, 98, 162)),
+                new Stop(1, Color.rgb(10, 130, 120))
         );
         g.setFill(woodBg);
-        g.fillRect(0, 0, 900, 700);
+        g.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
-        // Inner board area with lighter wood
-        g.setFill(Color.rgb(190, 140, 90));
+        // Inner board area with vibrant gradient
+        LinearGradient boardBg = new LinearGradient(
+                0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0, Color.rgb(255, 236, 179)),
+                new Stop(0.5, Color.rgb(255, 207, 233)),
+                new Stop(1, Color.rgb(189, 255, 241))
+        );
+        g.setFill(boardBg);
         g.fillRoundRect(40, 40, 620, 640, 20, 20);
 
         // Outer border
-        g.setStroke(Color.rgb(60, 35, 20));
-        g.setLineWidth(4);
+        g.setStroke(Color.rgb(68, 33, 150));
+        g.setLineWidth(5);
         g.strokeRoundRect(40, 40, 620, 640, 20, 20);
 
-        // Board lines (dark wood)
-        g.setStroke(Color.rgb(80, 50, 30));
-        g.setLineWidth(3);
+        // Board lines (colorful)
+        g.setStroke(Color.rgb(90, 50, 180));
+        g.setLineWidth(3.5);
         for (int i = 0; i < 24; i++) {
             for (int nb : Constants.ADJ.get(i)) {
                 if (nb > i) {
@@ -255,8 +287,8 @@ public class GameController {
             }
         }
 
-        // Highlight valid moves (soft green glow)
-        g.setFill(Color.color(0.5, 0.9, 0.5, 0.9));
+        // Highlight valid moves (neon green)
+        g.setFill(Color.color(0.2, 1.0, 0.6, 0.9));
         for (int d : validDestinations) {
             double x = nodePos[d][0];
             double y = nodePos[d][1];
@@ -265,8 +297,8 @@ public class GameController {
 
         // Highlight selected source
         if (selectedSource != -1) {
-            g.setStroke(Color.CORNFLOWERBLUE);
-            g.setLineWidth(3);
+            g.setStroke(Color.rgb(255, 140, 0));
+            g.setLineWidth(4);
             double x = nodePos[selectedSource][0];
             double y = nodePos[selectedSource][1];
             g.strokeOval(x - 16, y - 16, 32, 32);
@@ -282,20 +314,20 @@ public class GameController {
             double y = nodePos[i][1];
             int v = board.getCells()[i];
 
-            // Point base: peg hole
-            g.setFill(Color.rgb(90, 60, 40));
+            // Point base: colorful peg hole
+            g.setFill(Color.rgb(70, 25, 120));
             g.fillOval(x - 10, y - 10, 20, 20);
 
             // Piece
             if (v == 1) { // HUMAN
-                g.setFill(Color.rgb(30, 130, 220));
+                g.setFill(Color.rgb(30, 160, 255));
                 g.fillOval(x - 14, y - 14, 28, 28);
-                g.setStroke(Color.BLACK);
+                g.setStroke(Color.rgb(10, 60, 120));
                 g.strokeOval(x - 14, y - 14, 28, 28);
             } else if (v == 2) { // CPU
-                g.setFill(Color.rgb(200, 30, 50));
+                g.setFill(Color.rgb(255, 60, 120));
                 g.fillOval(x - 14, y - 14, 28, 28);
-                g.setStroke(Color.BLACK);
+                g.setStroke(Color.rgb(120, 10, 50));
                 g.strokeOval(x - 14, y - 14, 28, 28);
             }
         }
@@ -304,8 +336,8 @@ public class GameController {
         if (lastCpuTo != null) {
             double x = nodePos[lastCpuTo][0];
             double y = nodePos[lastCpuTo][1];
-            g.setStroke(Color.GOLD);
-            g.setLineWidth(4);
+            g.setStroke(Color.rgb(255, 215, 70));
+            g.setLineWidth(5);
             g.strokeOval(x - 20, y - 20, 40, 40);
         }
 
@@ -314,10 +346,12 @@ public class GameController {
 
     private void drawMovingPiece(double x, double y, int playerCode) {
         g.setFill(playerCode == Player.HUMAN.code()
-                ? Color.rgb(30, 130, 220)
-                : Color.rgb(200, 30, 50));
+                ? Color.rgb(30, 160, 255)
+                : Color.rgb(255, 60, 120));
         g.fillOval(x - 14, y - 14, 28, 28);
-        g.setStroke(Color.BLACK);
+        g.setStroke(playerCode == Player.HUMAN.code()
+                ? Color.rgb(10, 60, 120)
+                : Color.rgb(120, 10, 50));
         g.strokeOval(x - 14, y - 14, 28, 28);
     }
 
@@ -332,7 +366,12 @@ public class GameController {
     // ========================= CLICK LOGIC =========================
 
     private void handleHumanClick(int pos) {
-        if (animating) return;
+        if (animating || gameOver) return;
+
+        if (!hasAnyLegalMove(Player.HUMAN)) {
+            endGame("Oops! You lost. No legal moves.", false);
+            return;
+        }
 
         // REMOVAL MODE
         if (waitingForRemoval) {
@@ -347,8 +386,7 @@ public class GameController {
         }
 
         // PLACEMENT PHASE
-        List<Move> moves = board.generateLegalMoves(Player.HUMAN.code());
-        boolean placement = moves.stream().anyMatch(m -> m.from == -1);
+        boolean placement = isPlacementPhase();
 
         if (placement) {
             if (!board.isEmpty(pos)) {
@@ -361,7 +399,14 @@ public class GameController {
             if (board.formsMill(Player.HUMAN.code(), pos)) {
                 waitingForRemoval = true;
                 removalCandidates = board.candidateRemovals(Player.CPU.code());
-                status.setText("Mill! Remove a CPU piece.");
+                if (removalCandidates.isEmpty()) {
+                    waitingForRemoval = false;
+                    status.setText("Mill formed, but no removable CPU pieces.");
+                    drawBoard();
+                    cpuTurn();
+                    return;
+                }
+                status.setText("Nice! Mill formed. Remove a CPU piece.");
                 drawBoard();
                 return;
             }
@@ -408,11 +453,18 @@ public class GameController {
                 if (board.formsMill(Player.HUMAN.code(), m.to)) {
                     waitingForRemoval = true;
                     removalCandidates = board.candidateRemovals(Player.CPU.code());
-                    status.setText("Mill! Remove a CPU piece.");
-                    drawBoard();
-                } else {
+                    if (removalCandidates.isEmpty()) {
+                    waitingForRemoval = false;
+                    status.setText("Mill formed, but no removable CPU pieces.");
                     drawBoard();
                     cpuTurn();
+                } else {
+                    status.setText("Nice! Mill formed. Remove a CPU piece.");
+                    drawBoard();
+                }
+            } else {
+                drawBoard();
+                cpuTurn();
                 }
             });
             return;
@@ -443,17 +495,17 @@ public class GameController {
     // ========================= CPU TURN =========================
 
     private void cpuTurn() {
-        if (animating) return;
+        if (animating || gameOver) return;
 
         List<Move> cpuMoves = board.generateLegalMoves(Player.CPU.code());
         if (cpuMoves.isEmpty()) {
-            status.setText("CPU has no moves left. YOU WIN!");
+            endGame("Hurray! You won! CPU has no moves.", true);
             return;
         }
 
         Move best = cpuStrategy.getBestMove(board, Player.CPU, Player.HUMAN);
         if (best == null) {
-            status.setText("CPU is stuck. YOU WIN!");
+            endGame("Hurray! You won! CPU is stuck.", true);
             return;
         }
 
@@ -471,13 +523,17 @@ public class GameController {
                 }
             }
 
-            if (board.countPieces(Player.HUMAN.code()) <= 2) {
+            if (!isPlacementPhase() && board.countPieces(Player.HUMAN.code()) <= 2) {
                 drawBoard();
-                status.setText("CPU wins. You have only 2 pieces.");
+                endGame("Oops! You lost. Only 2 pieces left.", false);
                 return;
             }
 
             drawBoard();
+            if (!hasAnyLegalMove(Player.HUMAN)) {
+                endGame("Oops! You lost. No legal moves.", false);
+                return;
+            }
             status.setText("Your turn.");
             return;
         }
@@ -494,13 +550,17 @@ public class GameController {
                 }
             }
 
-            if (board.countPieces(Player.HUMAN.code()) <= 2) {
+            if (!isPlacementPhase() && board.countPieces(Player.HUMAN.code()) <= 2) {
                 drawBoard();
-                status.setText("CPU wins. You have only 2 pieces.");
+                endGame("Oops! You lost. Only 2 pieces left.", false);
                 return;
             }
 
             drawBoard();
+            if (!hasAnyLegalMove(Player.HUMAN)) {
+                endGame("Oops! You lost. No legal moves.", false);
+                return;
+            }
             status.setText("Your turn.");
         });
     }
@@ -552,5 +612,56 @@ public class GameController {
             if (dx * dx + dy * dy <= 18 * 18) return i;
         }
         return -1;
+    }
+
+    private boolean hasAnyLegalMove(Player player) {
+        List<Move> moves = board.generateLegalMoves(player.code());
+        return moves != null && !moves.isEmpty();
+    }
+
+    private boolean isPlacementPhase() {
+        List<Move> moves = board.generateLegalMoves(Player.HUMAN.code());
+        return moves.stream().anyMatch(m -> m.from == -1);
+    }
+
+    private void startBackgroundAnimation() {
+        if (bgTimeline != null) bgTimeline.stop();
+        bgTimeline = new Timeline(
+                new KeyFrame(Duration.ZERO, e -> {
+                    root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f6f3ff, #eaf7ff, #f9fff2);");
+                }),
+                new KeyFrame(Duration.seconds(3), e -> {
+                    root.setStyle("-fx-background-color: linear-gradient(to bottom right, #fff2f7, #e9fff7, #f0f4ff);");
+                }),
+                new KeyFrame(Duration.seconds(6), e -> {
+                    root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f6f3ff, #eaf7ff, #f9fff2);");
+                })
+        );
+        bgTimeline.setCycleCount(Timeline.INDEFINITE);
+        bgTimeline.play();
+    }
+
+    private void showStartDialog() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, "", ButtonType.OK);
+        alert.setTitle("Welcome");
+        alert.setHeaderText("Nine Men's Morris");
+        alert.setContentText("Game start! Placement phase begins.\nYou play first. Good luck!");
+        alert.showAndWait();
+    }
+
+    private void endGame(String message, boolean humanWon) {
+        if (gameOver) return;
+        gameOver = true;
+        status.setText(message);
+        canvas.setDisable(true);
+        algoSelect.setDisable(true);
+        if (bgTimeline != null) bgTimeline.stop();
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, "", ButtonType.OK);
+            alert.setTitle("Game Over");
+            alert.setHeaderText(humanWon ? "Hurray! You won!" : "Oops! You lost.");
+            alert.setContentText(message);
+            alert.showAndWait();
+        });
     }
 }
