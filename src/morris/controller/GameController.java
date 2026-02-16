@@ -19,6 +19,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.RadialGradient;
 import javafx.scene.paint.Stop;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -66,33 +67,33 @@ public class GameController {
     private Timeline moveTimeline;
     private Integer lastCpuTo = null;
     private Timeline bgTimeline;
-    private boolean bgToggle = false;
+    private static final double CANVAS_SIZE = 620;
     private boolean gameOver = false;
 
     public GameController() {
         board = new Board();
 
         root = new BorderPane();
-        canvas = new Canvas(720, 720);
+        canvas = new Canvas(CANVAS_SIZE, CANVAS_SIZE);
         g = canvas.getGraphicsContext2D();
 
-        root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f6f3ff, #eaf7ff, #f9fff2);");
+        root.setStyle("-fx-background-color: linear-gradient(to bottom right, #f3efe6, #e9decf, #e3d6c3);");
 
         Label title = new Label("Nine Men's Morris");
-        title.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #4b1fa6;");
+        title.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 30px; -fx-font-weight: bold; -fx-text-fill: #342313;");
 
         status = new Label("Placement phase. Human plays first.");
         status.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0b6ea8;");
 
         humanCoinsLabel = new Label("Your Coins: 9");
         cpuCoinsLabel   = new Label("CPU Coins: 9");
-        humanCoinsLabel.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #0b5fa6;");
-        cpuCoinsLabel.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #b0204e;");
+        humanCoinsLabel.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1f5b8a;");
+        cpuCoinsLabel.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #9a3f2c;");
 
         algoSelect = new ComboBox<>();
         algoSelect.getItems().addAll("Greedy", "Divide & Conquer", "DP");
         algoSelect.setValue("Greedy");
-        algoSelect.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-background-color: #ffffff; -fx-border-color: #8e6bd1;");
+        algoSelect.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 14px; -fx-background-color: #fff9ef; -fx-border-color: #9a7b57; -fx-border-radius: 8; -fx-background-radius: 8;");
 
         Label algoTitle = new Label("CPU Strategy");
         algoTitle.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #6a2bd9;");
