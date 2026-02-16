@@ -90,7 +90,7 @@ public class GameController {
         cpuCoinsLabel.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #b0204e;");
 
         algoSelect = new ComboBox<>();
-        algoSelect.getItems().addAll("Greedy", "Divide & Conquer");
+        algoSelect.getItems().addAll("Greedy", "Divide & Conquer", "DP");
         algoSelect.setValue("Greedy");
         algoSelect.setStyle("-fx-font-family: 'Georgia'; -fx-font-size: 14px; -fx-background-color: #ffffff; -fx-border-color: #8e6bd1;");
 
