@@ -164,6 +164,9 @@ public class GameController {
             case "Divide & Conquer":
                 cpuStrategy = new DivideAndConquerStrategy();
                 break;
+            case "DP":
+                cpuStrategy = new DpStrategy();
+                break;
         }
     }
 
