@@ -1,8 +1,7 @@
 package morris.model;
 
-import morris.util.Constants;
-
 import java.util.*;
+import morris.util.Constants;
 
 public class Board implements Cloneable {
     private final int[] cells = new int[24];
@@ -107,7 +106,7 @@ public class Board implements Cloneable {
             if (!contains) continue;
             boolean all = true;
             for (int m : mill) {
-                if (cells[m] != playerCode && m != pos) {
+                if (cells[m] != playerCode) {
                     all = false;
                     break;
                 }

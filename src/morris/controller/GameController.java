@@ -1,3 +1,4 @@
+
 package morris.controller;
 
 import javafx.application.Platform;
@@ -271,6 +272,17 @@ public class GameController {
             g.fillOval(x - 9, y - 9, 18, 18);
         }
 
+        // Highlight removable CPU pieces when human formed a mill
+        if (waitingForRemoval) {
+            g.setStroke(Color.rgb(255, 210, 125));
+            g.setLineWidth(4.0);
+            for (int d : removalCandidates) {
+                double x = nodePos[d][0];
+                double y = nodePos[d][1];
+                g.strokeOval(x - 18, y - 18, 36, 36);
+            }
+        }
+
         // Highlight selected source
         if (selectedSource != -1) {
             g.setStroke(Color.rgb(247, 204, 96));
@@ -385,6 +397,10 @@ public class GameController {
                 drawBoard();
                 if (checkCpuDefeatAfterHumanTurn()) return;
                 handOverToCpu();
+            } else if (board.getCells()[pos] == Player.CPU.code()) {
+                status.setText("That CPU piece is protected in a mill. Choose a highlighted piece.");
+            } else {
+                status.setText("Choose a highlighted CPU piece to remove.");
             }
             return;
         }
@@ -542,14 +558,14 @@ public class GameController {
                 }
             }
 
-            if (board.countPieces(Player.HUMAN.code()) <= 2) {
+            if (!isPlacementPhase() && board.countPieces(Player.HUMAN.code()) <= 2) {
                 drawBoard();
                 endGame("Oops! You lost. Only 2 pieces left.", false);
                 return;
             }
 
             drawBoard();
-            if (!hasAnyLegalMove(Player.HUMAN)) {
+            if (!isPlacementPhase() && !hasAnyLegalMove(Player.HUMAN)) {
                 endGame("Oops! You lost. No legal moves.", false);
                 return;
             }
@@ -572,14 +588,14 @@ public class GameController {
                 }
             }
 
-            if (board.countPieces(Player.HUMAN.code()) <= 2) {
+            if (!isPlacementPhase() && board.countPieces(Player.HUMAN.code()) <= 2) {
                 drawBoard();
                 endGame("Oops! You lost. Only 2 pieces left.", false);
                 return;
             }
 
             drawBoard();
-            if (!hasAnyLegalMove(Player.HUMAN)) {
+            if (!isPlacementPhase() && !hasAnyLegalMove(Player.HUMAN)) {
                 endGame("Oops! You lost. No legal moves.", false);
                 return;
             }
@@ -648,11 +664,11 @@ public class GameController {
     }
 
     private boolean checkCpuDefeatAfterHumanTurn() {
-        if (board.countPieces(Player.CPU.code()) <= 2) {
+        if (!isPlacementPhase() && board.countPieces(Player.CPU.code()) <= 2) {
             endGame("Hurray! You won! CPU has only 2 pieces left.", true);
             return true;
         }
-        if (!hasAnyLegalMove(Player.CPU)) {
+        if (!isPlacementPhase() && !hasAnyLegalMove(Player.CPU)) {
             endGame("Hurray! You won! CPU has no legal moves.", true);
             return true;
         }
@@ -717,4 +733,3 @@ public class GameController {
         });
     }
 }
-

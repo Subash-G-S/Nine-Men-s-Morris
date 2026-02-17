@@ -1,14 +1,12 @@
 package morris.ai;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import morris.model.Board;
 import morris.model.Move;
 import morris.model.Player;
 import morris.util.Constants;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class DpStrategy implements CpuStrategy {
 
@@ -33,7 +31,7 @@ public class DpStrategy implements CpuStrategy {
             Board afterCpu = board.clone();
             afterCpu.applyMove(m, cpu.code());
 
-            int score = scoreMoveWithShallowDP(afterCpu, cpu, human);
+            int score = scoreMoveWithShallowDP(afterCpu, m, cpu, human);
 
             if (score > bestScore) {
                 bestScore = score;
@@ -64,24 +62,32 @@ public class DpStrategy implements CpuStrategy {
         for (Move m : moves) if (Constants.MIDDLE_RING.contains(m.to)) return m;
         return moves.get(0);
     }
-    private int scoreMoveWithShallowDP(Board afterCpu, Player cpu, Player human) {
+    private int scoreMoveWithShallowDP(Board afterCpu, Move cpuMove, Player cpu, Player human) {
+        if (afterCpu.formsMill(cpu.code(), cpuMove.to)) {
+            applyBestRemoval(afterCpu, cpu, human, true, cpu, human);
+        }
+
         int myEval = evaluateWithCache(afterCpu, cpu, human);
 
         List<Move> oppMoves = afterCpu.generateLegalMoves(human.code());
         if (oppMoves.isEmpty()) {
-            
             return myEval + 50_000;
         }
 
-        int bestOpp = Integer.MIN_VALUE;
+        int worstForCpu = Integer.MAX_VALUE;
         for (Move om : oppMoves) {
             Board afterOpp = afterCpu.clone();
             afterOpp.applyMove(om, human.code());
+
+            if (afterOpp.formsMill(human.code(), om.to)) {
+                applyBestRemoval(afterOpp, human, cpu, false, cpu, human);
+            }
+
             int v = evaluateWithCache(afterOpp, cpu, human);
-            if (v > bestOpp) bestOpp = v;
+            if (v < worstForCpu) worstForCpu = v;
         }
 
-        return myEval - bestOpp;
+        return worstForCpu;
     }
 
     private int evaluateWithCache(Board b, Player cpu, Player human) {
@@ -100,6 +106,34 @@ public class DpStrategy implements CpuStrategy {
             if (c.hasAnyMill(opponent.code()) && m.to == om.to) return true;
         }
         return false;
+    }
+
+    private void applyBestRemoval(Board board, Player attacker, Player defender, boolean maximizeCpuEval, Player cpu, Player human) {
+        List<Integer> candidates = board.candidateRemovals(defender.code());
+        if (candidates.isEmpty()) return;
+
+        Integer bestRemoval = null;
+        int bestScore = maximizeCpuEval ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+
+        for (int idx : candidates) {
+            Board clone = board.clone();
+            clone.getCells()[idx] = Constants.EMPTY;
+            int score = evaluateWithCache(clone, cpu, human);
+
+            if (maximizeCpuEval) {
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestRemoval = idx;
+                }
+            } else {
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestRemoval = idx;
+                }
+            }
+        }
+
+        if (bestRemoval != null) board.getCells()[bestRemoval] = Constants.EMPTY;
     }
 
     // ------------------------ Encoding / Utilities ------------------------
