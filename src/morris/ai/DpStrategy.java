@@ -17,7 +17,13 @@ public class DpStrategy implements CpuStrategy {
         List<Move> moves = board.generateLegalMoves(cpu.code());
         if (moves.isEmpty()) return null;
 
-        // Placement phase
+        // Always prioritize immediate tactical mill, in placement and movement.
+        Move immediateMill = chooseImmediateMillMove(board, moves, cpu, human);
+        if (immediateMill != null) {
+            return immediateMill;
+        }
+
+        // Placement phase fallback
         if (moves.get(0).from == -1) {
             return choosePlacementMove(board, moves, cpu, human);
         }
@@ -39,6 +45,25 @@ public class DpStrategy implements CpuStrategy {
             }
         }
 
+        return bestMove;
+    }
+
+    private Move chooseImmediateMillMove(Board board, List<Move> moves, Player cpu, Player human) {
+        Move bestMove = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Move m : moves) {
+            Board c = board.clone();
+            c.applyMove(m, cpu.code());
+            if (!c.formsMill(cpu.code(), m.to)) continue;
+
+            applyBestRemoval(c, cpu, human, true, cpu, human);
+            int score = evaluate(c, cpu, human);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = m;
+            }
+        }
         return bestMove;
     }
 
