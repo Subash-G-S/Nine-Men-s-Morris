@@ -8,4 +8,11 @@
 --------3 ) Recursion : Call the function again and again to simulate the oponents best move .
 --------4 ) Backtrack : Revert the board to its previous state to check the alternative path . 
  * 
+ * 
+ * Kinda trial and error method to win the game against a human. Not actually a brute force .
+ * 
+ * Time Complexity ::  O(b^d)
+ * 
+ * here b is avaerage numbe of legal moves available . 
+ * and d is depth (no of turns the algorithm looks ahead)
  */
