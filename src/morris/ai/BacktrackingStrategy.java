@@ -85,5 +85,81 @@ public class BacktrackingStrategy implements CpuStrategy {
 
         return bestMove;
     }
+    private int minimax(Board state, int depth, boolean isMaximizing, int alpha, int beta) {
+        nodesVisited++;
+        if (depth == 0 || isTerminal(state)) return evaluate(state);
+
+        int currentCode = isMaximizing ? cpuCode : humanCode;
+        int opponentCode = isMaximizing ? humanCode : cpuCode;
+        List<Move> moves = orderMoves(
+                state,
+                state.generateLegalMoves(currentCode),
+                currentCode,
+                opponentCode,
+                isMaximizing
+        );
+
+        if (moves.isEmpty()) {
+            return isMaximizing ? -WIN_SCORE + depth : WIN_SCORE - depth;
+        }
+
+        if (isMaximizing) {
+            int best = Integer.MIN_VALUE;
+            for (Move move : moves) {
+                for (Board next : applyMoveAndResolveMill(state, move, currentCode, opponentCode)) {
+                    int score = minimax(next, depth - 1, false, alpha, beta);
+                    best = Math.max(best, score);
+                    alpha = Math.max(alpha, best);
+                    if (alpha >= beta) return best;
+                }
+            }
+            return best;
+        }
+
+        int best = Integer.MAX_VALUE;
+        for (Move move : moves) {
+            for (Board next : applyMoveAndResolveMill(state, move, currentCode, opponentCode)) {
+                int score = minimax(next, depth - 1, true, alpha, beta);
+                best = Math.min(best, score);
+                beta = Math.min(beta, best);
+                if (alpha >= beta) return best;
+            }
+        }
+        return best;
+    }
+
+    private List<Board> applyMoveAndResolveMill(Board state, Move move, int moverCode, int opponentCode) {
+        Board applied = state.clone();
+        applied.applyMove(move, moverCode);
+
+        if (!applied.formsMill(moverCode, move.to)) {
+            return List.of(applied);
+        }
+
+        List<Integer> removals = applied.candidateRemovals(opponentCode);
+        if (removals.isEmpty()) {
+            return List.of(applied);
+        }
+
+        List<Board> outcomes = new ArrayList<>(removals.size());
+        List<Integer> orderedRemovals = orderRemovals(applied, removals, moverCode, opponentCode);
+        for (int removeAt : orderedRemovals) {
+            Board afterCapture = applied.clone();
+            afterCapture.getCells()[removeAt] = Constants.EMPTY;
+            outcomes.add(afterCapture);
+        }
+        return outcomes;
+    }
+
+    private boolean isTerminal(Board board) {
+        if (isPlacementPhase(board)) return false;
+
+        if (board.countPieces(cpuCode) <= 2 || board.countPieces(humanCode) <= 2) return true;
+        return board.generateLegalMoves(cpuCode).isEmpty() || board.generateLegalMoves(humanCode).isEmpty();
+    }
+
+    private boolean isPlacementPhase(Board board) {
+        return board.generateLegalMoves(cpuCode).stream().anyMatch(m -> m.from == -1);
+    }
 
  
