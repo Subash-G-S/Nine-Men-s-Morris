@@ -230,5 +230,84 @@ public class BacktrackingStrategy implements CpuStrategy {
         }
         return best;
     }
+    private Move findImmediateBlockMove(Board board, List<Move> cpuMoves, int opponentCode) {
+        List<Move> threatMoves = board.generateLegalMoves(opponentCode);
+        List<Integer> threatTargets = new ArrayList<>();
+        for (Move threat : threatMoves) {
+            Board next = board.clone();
+            next.applyMove(threat, opponentCode);
+            if (next.formsMill(opponentCode, threat.to)) threatTargets.add(threat.to);
+        }
+
+        if (threatTargets.isEmpty()) return null;
+        for (Move cpuMove : cpuMoves) {
+            if (threatTargets.contains(cpuMove.to)) return cpuMove;
+        }
+        return null;
+    }
+
+    private List<Move> orderMoves(
+            Board state,
+            List<Move> moves,
+            int moverCode,
+            int opponentCode,
+            boolean descending
+    ) {
+        List<ScoredMove> scored = new ArrayList<>(moves.size());
+        for (Move move : moves) {
+            Board c = state.clone();
+            c.applyMove(move, moverCode);
+            int score = 0;
+            if (c.formsMill(moverCode, move.to)) score += 400;
+            score += (countNearMills(c, moverCode) - countNearMills(c, opponentCode)) * 20;
+            score += (c.generateLegalMoves(moverCode).size() - c.generateLegalMoves(opponentCode).size()) * 3;
+            if (Constants.INNER_RING.contains(move.to)) score += 20;
+            if (Constants.MIDDLE_RING.contains(move.to)) score += 12;
+            scored.add(new ScoredMove(move, score));
+        }
+
+        scored.sort((a, b) -> descending
+                ? Integer.compare(b.score, a.score)
+                : Integer.compare(a.score, b.score));
+
+        List<Move> ordered = new ArrayList<>(moves.size());
+        for (ScoredMove sm : scored) ordered.add(sm.move);
+        return ordered;
+    }
+
+    private List<Integer> orderRemovals(Board state, List<Integer> removals, int moverCode, int opponentCode) {
+        List<ScoredRemoval> scored = new ArrayList<>(removals.size());
+        for (int rem : removals) {
+            Board c = state.clone();
+            c.getCells()[rem] = Constants.EMPTY;
+            int score = evaluate(c);
+            scored.add(new ScoredRemoval(rem, score));
+        }
+        // Higher board score for mover is better, so try these first.
+        scored.sort((a, b) -> Integer.compare(b.score, a.score));
+
+        List<Integer> ordered = new ArrayList<>(removals.size());
+        for (ScoredRemoval sr : scored) ordered.add(sr.index);
+        return ordered;
+    }
+
+    private int countBlockedPieces(Board board, int playerCode) {
+        if (isPlacementPhase(board)) return 0;
+        int blocked = 0;
+        boolean flying = board.countPieces(playerCode) == 3;
+        if (flying) return 0;
+        for (int i = 0; i < 24; i++) {
+            if (board.getCells()[i] != playerCode) continue;
+            boolean hasEmptyNeighbor = false;
+            for (int nb : Constants.ADJ.get(i)) {
+                if (board.getCells()[nb] == Constants.EMPTY) {
+                    hasEmptyNeighbor = true;
+                    break;
+                }
+            }
+            if (!hasEmptyNeighbor) blocked++;
+        }
+        return blocked;
+    }
 
  
