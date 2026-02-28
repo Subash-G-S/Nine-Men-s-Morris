@@ -161,5 +161,74 @@ public class BacktrackingStrategy implements CpuStrategy {
     private boolean isPlacementPhase(Board board) {
         return board.generateLegalMoves(cpuCode).stream().anyMatch(m -> m.from == -1);
     }
+    private int evaluate(Board state) {
+        if (!isPlacementPhase(state)) {
+            if (state.countPieces(cpuCode) <= 2 || state.generateLegalMoves(cpuCode).isEmpty()) return -WIN_SCORE;
+            if (state.countPieces(humanCode) <= 2 || state.generateLegalMoves(humanCode).isEmpty()) return WIN_SCORE;
+        }
+
+        int score = 0;
+
+        int cpuPieces = state.countPieces(cpuCode);
+        int humanPieces = state.countPieces(humanCode);
+        int cpuMobility = state.generateLegalMoves(cpuCode).size();
+        int humanMobility = state.generateLegalMoves(humanCode).size();
+
+        score += (cpuPieces - humanPieces) * PIECE_VALUE;
+        score += (cpuMobility - humanMobility) * MOBILITY_WEIGHT;
+        score += (state.countMills(cpuCode) - state.countMills(humanCode)) * MILL_VALUE;
+        score += (countNearMills(state, cpuCode) - countNearMills(state, humanCode)) * MILL_POTENTIAL;
+        score += (countBlockedPieces(state, humanCode) - countBlockedPieces(state, cpuCode)) * BLOCK_THREAT_VALUE;
+        score += (largestCluster(state, cpuCode) - largestCluster(state, humanCode)) * CLUSTER_VALUE;
+
+        score += state.countPiecesInList(cpuCode, Constants.INNER_RING) * 8;
+        score += state.countPiecesInList(cpuCode, Constants.MIDDLE_RING) * 5;
+        score -= state.countPiecesInList(humanCode, Constants.INNER_RING) * 8;
+        score -= state.countPiecesInList(humanCode, Constants.MIDDLE_RING) * 5;
+
+        return score;
+    }
+
+    private int countNearMills(Board board, int playerCode) {
+        int near = 0;
+        for (int[] mill : Constants.MILLS) {
+            int own = 0;
+            int empty = 0;
+            for (int idx : mill) {
+                if (board.getCells()[idx] == playerCode) own++;
+                else if (board.getCells()[idx] == Constants.EMPTY) empty++;
+            }
+            if (own == 2 && empty == 1) near++;
+        }
+        return near;
+    }
+
+    private Move findImmediateMillMove(Board board, List<Move> moves, int playerCode, int opponentCode) {
+        Move best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (Move move : moves) {
+            Board next = board.clone();
+            next.applyMove(move, playerCode);
+            if (!next.formsMill(playerCode, move.to)) continue;
+
+            // Approximate impact after best available capture.
+            int score = Integer.MIN_VALUE;
+            List<Integer> removals = next.candidateRemovals(opponentCode);
+            if (removals.isEmpty()) {
+                score = evaluate(next);
+            } else {
+                for (int rem : removals) {
+                    Board c = next.clone();
+                    c.getCells()[rem] = Constants.EMPTY;
+                    score = Math.max(score, evaluate(c));
+                }
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = move;
+            }
+        }
+        return best;
+    }
 
  
