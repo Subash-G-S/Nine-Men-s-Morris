@@ -85,7 +85,7 @@ public class BacktrackingStrategy implements CpuStrategy {
 
         return bestMove;
     }
-    private int minimax(Board state, int depth, boolean isMaximizing, int alpha, int beta) {
+   private int minimax(Board state, int depth, boolean isMaximizing, int alpha, int beta) {
         nodesVisited++;
         if (depth == 0 || isTerminal(state)) return evaluate(state);
 
@@ -161,6 +161,7 @@ public class BacktrackingStrategy implements CpuStrategy {
     private boolean isPlacementPhase(Board board) {
         return board.generateLegalMoves(cpuCode).stream().anyMatch(m -> m.from == -1);
     }
+
     private int evaluate(Board state) {
         if (!isPlacementPhase(state)) {
             if (state.countPieces(cpuCode) <= 2 || state.generateLegalMoves(cpuCode).isEmpty()) return -WIN_SCORE;
@@ -230,6 +231,7 @@ public class BacktrackingStrategy implements CpuStrategy {
         }
         return best;
     }
+
     private Move findImmediateBlockMove(Board board, List<Move> cpuMoves, int opponentCode) {
         List<Move> threatMoves = board.generateLegalMoves(opponentCode);
         List<Integer> threatTargets = new ArrayList<>();
@@ -310,4 +312,46 @@ public class BacktrackingStrategy implements CpuStrategy {
         return blocked;
     }
 
+    private int largestCluster(Board board, int playerCode) {
+        boolean[] visited = new boolean[24];
+        int best = 0;
+        for (int i = 0; i < 24; i++) {
+            if (visited[i] || board.getCells()[i] != playerCode) continue;
+            int cluster = dfsCluster(board, i, playerCode, visited);
+            if (cluster > best) best = cluster;
+        }
+        return best;
+    }
+
+    private int dfsCluster(Board board, int index, int playerCode, boolean[] visited) {
+        visited[index] = true;
+        int size = 1;
+        for (int nb : Constants.ADJ.get(index)) {
+            if (!visited[nb] && board.getCells()[nb] == playerCode) {
+                size += dfsCluster(board, nb, playerCode, visited);
+            }
+        }
+        return size;
+    }
+
+    private static class ScoredMove {
+        private final Move move;
+        private final int score;
+
+        private ScoredMove(Move move, int score) {
+            this.move = move;
+            this.score = score;
+        }
+    }
+
+    private static class ScoredRemoval {
+        private final int index;
+        private final int score;
+
+        private ScoredRemoval(int index, int score) {
+            this.index = index;
+            this.score = score;
+        }
+    }
+}
  

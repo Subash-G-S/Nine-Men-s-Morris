@@ -28,6 +28,7 @@ import javafx.geometry.Pos;
 import javafx.util.Duration;
 
 import morris.ai.CpuStrategy;
+import morris.ai.BacktrackingStrategy;
 import morris.ai.DivideAndConquerStrategy;
 import morris.ai.DpStrategy;
 import morris.ai.GreedyStrategy;
@@ -94,7 +95,7 @@ public class GameController {
         cpuCoinsLabel.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #9a3f2c;");
 
         algoSelect = new ComboBox<>();
-        algoSelect.getItems().addAll("Greedy", "Divide & Conquer", "DP");
+        algoSelect.getItems().addAll("Greedy", "Divide & Conquer", "DP", "Backtracking");
         algoSelect.setValue("DP");
         algoSelect.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 14px; -fx-background-color: #fff9ef; -fx-border-color: #9a7b57; -fx-border-radius: 8; -fx-background-radius: 8;");
 
@@ -175,6 +176,9 @@ public class GameController {
                 break;
             case "DP":
                 cpuStrategy = new DpStrategy();
+                break;
+            case "Backtracking":
+                cpuStrategy = new BacktrackingStrategy();
                 break;
         }
     }
