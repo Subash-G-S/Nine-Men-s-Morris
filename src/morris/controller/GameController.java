@@ -124,9 +124,9 @@ public class GameController {
         VBox titleBox = new VBox(4, title, status);
         titleBox.setAlignment(Pos.CENTER_LEFT);
 
-        VBox leftBox = new VBox(8, algoTitle, algoSelect, humanCoinsLabel, cpuCoinsLabel);
+        VBox leftBox = new VBox(8, algoTitle, algoSelect, visualizeBtn, humanCoinsLabel, cpuCoinsLabel);
         leftBox.setAlignment(Pos.CENTER_LEFT);
-
+        
         HBox topContent = new HBox(24, leftBox, titleBox);
         topContent.setAlignment(Pos.CENTER_LEFT);
         topContent.setStyle("-fx-background-color: rgba(255,250,240,0.70); -fx-background-radius: 14; -fx-padding: 10 14 10 14; -fx-border-color: rgba(140,95,58,0.35); -fx-border-radius: 14;");
