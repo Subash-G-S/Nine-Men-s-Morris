@@ -10,6 +10,7 @@ import javafx.beans.property.SimpleDoubleProperty;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -52,6 +53,7 @@ public class GameController {
     private final Label humanCoinsLabel;
     private final Label cpuCoinsLabel;
     private final ComboBox<String> algoSelect;
+    private final Button visualizeBtn;
     private final TextArea commentaryArea;
 
     // --- game state ---
@@ -101,7 +103,9 @@ public class GameController {
 
         Label algoTitle = new Label("CPU Strategy");
         algoTitle.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #5a4028;");
-
+        visualizeBtn = new Button("Visualize Backtracking");
+        visualizeBtn.setStyle("-fx-font-family: 'Cambria'; -fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: #f0e1c6; -fx-text-fill: #4b321d; -fx-border-color: #9a7b57; -fx-border-radius: 8; -fx-background-radius: 8;");
+        visualizeBtn.setOnAction(e -> showBacktrackingTrace());
         commentaryArea = new TextArea();
         commentaryArea.setEditable(false);
         commentaryArea.setWrapText(true);
@@ -181,6 +185,38 @@ public class GameController {
                 cpuStrategy = new BacktrackingStrategy();
                 break;
         }
+        boolean isBacktracking = "Backtracking".equals(algoSelect.getValue());
+        visualizeBtn.setDisable(!isBacktracking);
+        if (isBacktracking) {
+            visualizeBtn.setText("Visualize Backtracking");
+        } else {
+            visualizeBtn.setText("Visualizer (Backtracking only)");
+        }
+    }
+
+    private void showBacktrackingTrace() {
+        if (!(cpuStrategy instanceof BacktrackingStrategy)) {
+            addCommentary("Switch strategy to Backtracking to use visualizer.");
+            return;
+        }
+
+        BacktrackingStrategy backtracking = (BacktrackingStrategy) cpuStrategy;
+        String trace = backtracking.buildSearchTrace(board, Player.CPU, Player.HUMAN, 3, 220);
+
+        TextArea traceArea = new TextArea(trace);
+        traceArea.setEditable(false);
+        traceArea.setWrapText(false);
+        traceArea.setPrefSize(680, 500);
+        traceArea.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px; -fx-control-inner-background: #fffaf1; -fx-text-fill: #2e2014;");
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Backtracking Search Visualization");
+        alert.setHeaderText("One-click trace of minimax + alpha-beta exploration");
+        alert.getDialogPane().setContent(traceArea);
+        alert.getDialogPane().setPrefSize(760, 560);
+        alert.showAndWait();
+
+        addCommentary("Backtracking visualization generated.");
     }
 
     // ========================= BOARD LAYOUT =========================
