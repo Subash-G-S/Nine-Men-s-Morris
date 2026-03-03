@@ -40,6 +40,27 @@ public class BacktrackingStrategy implements CpuStrategy {
     private static final int BLOCK_THREAT_VALUE = 50;
     private static final int CLUSTER_VALUE = 6;
 
+    private static class TraceContext {
+        private final StringBuilder out = new StringBuilder();
+        private final int maxNodes;
+        private int visited;
+        private boolean capped;
+
+        private TraceContext(int maxNodes) {
+            this.maxNodes = Math.max(1, maxNodes);
+        }
+
+        private boolean allowNode() {
+            if (visited >= maxNodes) {
+                capped = true;
+                return false;
+            }
+            visited++;
+            return true;
+        }
+    }
+
+
     @Override
     public Move getBestMove(Board board, Player cpu, Player human) {
         this.cpuCode = cpu.code();
@@ -333,6 +354,152 @@ public class BacktrackingStrategy implements CpuStrategy {
         }
         return size;
     }
+    public String buildSearchTrace(Board board, Player cpu, Player human, int depthLimit, int nodeLimit) {
+        this.cpuCode = cpu.code();
+        this.humanCode = human.code();
+
+        int effectiveDepth = Math.max(1, depthLimit);
+        List<Move> legalMoves = board.generateLegalMoves(cpuCode);
+        TraceContext trace = new TraceContext(nodeLimit);
+
+        trace.out.append("Backtracking Visualizer\n");
+        trace.out.append("Depth limit: ").append(effectiveDepth)
+                .append(", node cap: ").append(nodeLimit).append("\n");
+        trace.out.append("Legal root moves: ").append(legalMoves.size()).append("\n\n");
+
+        if (legalMoves.isEmpty()) {
+            trace.out.append("No legal move for CPU.\n");
+            return trace.out.toString();
+        }
+
+        Move immediateMill = findImmediateMillMove(board, legalMoves, cpuCode, humanCode);
+        if (immediateMill != null) {
+            trace.out.append("Fast-path immediate mill detected -> ")
+                    .append(immediateMill)
+                    .append("\n");
+        }
+        Move immediateBlock = findImmediateBlockMove(board, legalMoves, humanCode);
+        if (immediateBlock != null) {
+            trace.out.append("Fast-path block threat detected -> ")
+                    .append(immediateBlock)
+                    .append("\n");
+        }
+        trace.out.append("\nRoot search:\n");
+
+        List<Move> orderedMoves = orderMoves(board, legalMoves, cpuCode, humanCode, true);
+        int alpha = Integer.MIN_VALUE;
+        int beta = Integer.MAX_VALUE;
+        Move bestMove = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Move move : orderedMoves) {
+            trace.out.append("- Try ").append(move).append("\n");
+            List<Board> nextStates = applyMoveAndResolveMill(board, move, cpuCode, humanCode);
+            int moveScore = Integer.MIN_VALUE;
+
+            for (Board next : nextStates) {
+                int score = minimaxTrace(next, effectiveDepth - 1, false, alpha, beta, 1, trace);
+                moveScore = Math.max(moveScore, score);
+                alpha = Math.max(alpha, moveScore);
+                if (alpha >= beta) {
+                    trace.out.append("  prune at root (alpha >= beta)\n");
+                    break;
+                }
+            }
+
+            trace.out.append("  score(").append(move).append(") = ").append(moveScore).append("\n");
+            if (moveScore > bestScore) {
+                bestScore = moveScore;
+                bestMove = move;
+            }
+
+            if (trace.capped) break;
+        }
+
+        trace.out.append("\nChosen move: ").append(bestMove)
+                .append(" with score ").append(bestScore).append("\n");
+        trace.out.append("Visited nodes: ").append(trace.visited).append("\n");
+        if (trace.capped) trace.out.append("(Trace capped by node limit)\n");
+
+        return trace.out.toString();
+    }
+
+    private int minimaxTrace(
+            Board state,
+            int depth,
+            boolean isMaximizing,
+            int alpha,
+            int beta,
+            int level,
+            TraceContext trace
+    ) {
+        if (!trace.allowNode()) {
+            return evaluate(state);
+        }
+
+        String indent = "  ".repeat(Math.max(0, level));
+        if (depth == 0 || isTerminal(state)) {
+            int eval = evaluate(state);
+            trace.out.append(indent)
+                    .append("leaf eval=")
+                    .append(eval)
+                    .append("\n");
+            return eval;
+        }
+
+        int currentCode = isMaximizing ? cpuCode : humanCode;
+        int opponentCode = isMaximizing ? humanCode : cpuCode;
+        List<Move> moves = orderMoves(
+                state,
+                state.generateLegalMoves(currentCode),
+                currentCode,
+                opponentCode,
+                isMaximizing
+        );
+
+        if (moves.isEmpty()) {
+            int score = isMaximizing ? -WIN_SCORE + depth : WIN_SCORE - depth;
+            trace.out.append(indent).append("no moves -> ").append(score).append("\n");
+            return score;
+        }
+
+        if (isMaximizing) {
+            int best = Integer.MIN_VALUE;
+            trace.out.append(indent).append("MAX depth=").append(depth).append("\n");
+            for (Move move : moves) {
+                trace.out.append(indent).append("try ").append(move).append("\n");
+                for (Board next : applyMoveAndResolveMill(state, move, currentCode, opponentCode)) {
+                    int score = minimaxTrace(next, depth - 1, false, alpha, beta, level + 1, trace);
+                    best = Math.max(best, score);
+                    alpha = Math.max(alpha, best);
+                    if (alpha >= beta) {
+                        trace.out.append(indent).append("prune (alpha >= beta)\n");
+                        return best;
+                    }
+                    if (trace.capped) return best;
+                }
+            }
+            return best;
+        }
+
+        int best = Integer.MAX_VALUE;
+        trace.out.append(indent).append("MIN depth=").append(depth).append("\n");
+        for (Move move : moves) {
+            trace.out.append(indent).append("try ").append(move).append("\n");
+            for (Board next : applyMoveAndResolveMill(state, move, currentCode, opponentCode)) {
+                int score = minimaxTrace(next, depth - 1, true, alpha, beta, level + 1, trace);
+                best = Math.min(best, score);
+                beta = Math.min(beta, best);
+                if (alpha >= beta) {
+                    trace.out.append(indent).append("prune (alpha >= beta)\n");
+                    return best;
+                }
+                if (trace.capped) return best;
+            }
+        }
+        return best;
+    }
+
 
     private static class ScoredMove {
         private final Move move;
